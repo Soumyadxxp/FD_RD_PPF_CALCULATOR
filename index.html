@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wealth Planner — FD, RD & PPF Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['DM Sans', 'sans-serif'],
+                        display: ['Playfair Display', 'serif'],
+                    },
+                    colors: {
+                        icici: { red: '#F05A22', dark: '#B03A0E', light: '#FEF0EA' },
+                        navy: { DEFAULT: '#0A1F3C', light: '#0E2D58' },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'DM Sans', sans-serif; }
+        .gradient-hero { background: linear-gradient(135deg, #0A1F3C 0%, #0E2D58 60%, #1a3a6c 100%); }
+        .card-glass { backdrop-filter: blur(12px); background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1); }
+        input[type=range] { -webkit-appearance: none; width: 100%; height: 4px; border-radius: 4px; background: #dde3ef; outline: none; }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: 18px; height: 18px; border-radius: 50%; background: #F05A22; cursor: pointer; box-shadow: 0 0 0 3px rgba(240,90,34,0.2); }
+        input[type=range]::-moz-range-thumb { width: 18px; height: 18px; border-radius: 50%; background: #F05A22; cursor: pointer; border: none; }
+        .stat-chip { background: linear-gradient(135deg, rgba(240,90,34,0.1), rgba(240,90,34,0.04)); border: 1px solid rgba(240,90,34,0.2); }
+        .table-row-even { background: #f9fafb; }
+        .table-row-odd { background: #ffffff; }
+        .table-row-hover:hover { background: #FEF0EA !important; }
+        @keyframes fadeInUp { from { opacity:0; transform: translateY(16px); } to { opacity:1; transform: translateY(0); } }
+        .animate-in { animation: fadeInUp 0.5s ease forwards; }
+        .btn-primary { background: linear-gradient(135deg, #F05A22, #d44a14); transition: all 0.2s; }
+        .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(240,90,34,0.35); }
+        .btn-secondary { border: 1.5px solid #e2e8f0; transition: all 0.2s; }
+        .btn-secondary:hover { border-color: #F05A22; color: #F05A22; background: #FEF0EA; }
+        .input-field { transition: all 0.2s; border: 1.5px solid #e2e8f0; }
+        .input-field:focus { border-color: #F05A22; box-shadow: 0 0 0 3px rgba(240,90,34,0.12); outline: none; }
+        .donut-legend span { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+        @media print { .no-print { display: none !important; } }
+        .calc-tab { transition: all 0.2s; cursor: pointer; }
+        .calc-tab.active { background: #F05A22; color: white; border-color: #F05A22; }
+        .calc-tab:not(.active) { background: white; color: #6b7280; border-color: #e2e8f0; }
+        .calc-tab:not(.active):hover { background: #f3f4f6; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
+
+<!-- Header -->
+<header class="gradient-hero text-white no-print">
+    <div class="max-w-6xl mx-auto px-6 py-5 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-icici-red flex items-center justify-center font-display font-bold text-lg">W</div>
+            <div>
+                <div class="font-display font-bold text-xl tracking-tight">Wealth Planner</div>
+                <div class="text-xs text-blue-200 font-light tracking-widest uppercase">Investment Tools</div>
+            </div>
+        </div>
+    </div>
+    <div class="max-w-6xl mx-auto px-6 pb-10 pt-6">
+        <h1 class="font-display text-3xl md:text-4xl font-bold mb-2">Deposit & PPF Planner</h1>
+        <p class="text-blue-200 text-sm font-light max-w-xl">Project your savings growth with Fixed Deposits, Recurring Deposits, or Public Provident Fund. View detailed schedules and comprehensive reports.</p>
+    </div>
+</header>
+
+<!-- Main -->
+<main class="max-w-6xl mx-auto px-4 md:px-6 -mt-4 pb-16">
+
+    <!-- Calculator Card -->
+    <div class="bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden mb-8 animate-in">
+        <div class="grid md:grid-cols-2 gap-0">
+
+            <!-- Inputs -->
+            <div class="p-6 md:p-8 border-r border-gray-100">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-lg font-semibold text-gray-900">Investment Details</h2>
+                    <div class="flex rounded-lg border border-gray-200 overflow-hidden text-sm font-medium">
+                        <button id="tabFD" class="calc-tab active px-4 py-1.5">FD</button>
+                        <button id="tabRD" class="calc-tab px-4 py-1.5">RD</button>
+                        <button id="tabPPF" class="calc-tab px-4 py-1.5">PPF</button>
+                    </div>
+                </div>
+
+                <!-- ===== FD FORM ===== -->
+                <form id="fdForm" class="space-y-6">
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-sm font-medium text-gray-600">Principal Amount</label>
+                            <div class="flex items-center gap-1">
+                                <span class="text-xs text-gray-400">₹</span>
+                                <input type="number" id="fdPrincipal" value="500000" min="1000" max="100000000" step="1000"
+                                    class="input-field w-28 text-right text-sm font-semibold rounded-lg px-3 py-1.5 bg-gray-50"
+                                    oninput="syncSlider('fdPrincipal','fdPrincipalSlider',1000,100000000); calculateFD()">
+                            </div>
+                        </div>
+                        <input type="range" id="fdPrincipalSlider" min="1000" max="100000000" step="1000" value="500000"
+                            oninput="syncInput('fdPrincipalSlider','fdPrincipal'); calculateFD()">
+                        <div class="flex justify-between text-xs text-gray-400 mt-1"><span>₹1K</span><span>₹10Cr</span></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-sm font-medium text-gray-600">Annual Interest Rate</label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="fdRate" value="7.5" min="0.1" max="15" step="0.1"
+                                    class="input-field w-20 text-right text-sm font-semibold rounded-lg px-3 py-1.5 bg-gray-50"
+                                    oninput="syncSlider('fdRate','fdRateSlider',0.1,15); calculateFD()">
+                                <span class="text-xs text-gray-400">%</span>
+                            </div>
+                        </div>
+                        <input type="range" id="fdRateSlider" min="0.1" max="15" step="0.1" value="7.5"
+                            oninput="syncInput('fdRateSlider','fdRate'); calculateFD()">
+                        <div class="flex justify-between text-xs text-gray-400 mt-1"><span>0.1%</span><span>15%</span></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-sm font-medium text-gray-600">Tenure</label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="fdYears" value="5" min="1" max="30" step="1"
+                                    class="input-field w-16 text-right text-sm font-semibold rounded-lg px-3 py-1.5 bg-gray-50"
+                                    oninput="syncSlider('fdYears','fdYearsSlider',1,30); calculateFD()">
+                                <span class="text-xs text-gray-400">yrs</span>
+                            </div>
+                        </div>
+                        <input type="range" id="fdYearsSlider" min="1" max="30" step="1" value="5"
+                            oninput="syncInput('fdYearsSlider','fdYears'); calculateFD()">
+                        <div class="flex justify-between text-xs text-gray-400 mt-1"><span>1 yr</span><span>30 yrs</span></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-sm font-medium text-gray-600 block mb-1">Compounding</label>
+                            <select id="fdCompounding" onchange="calculateFD()"
+                                class="input-field w-full text-sm rounded-lg px-3 py-2 bg-gray-50 cursor-pointer">
+                                <option value="12">Monthly</option>
+                                <option value="4" selected>Quarterly</option>
+                                <option value="2">Half-yearly</option>
+                                <option value="1">Yearly</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-600 block mb-1">Start Date</label>
+                            <input type="date" id="fdDate" class="input-field w-full text-sm rounded-lg px-3 py-2 bg-gray-50" onchange="calculateFD()">
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-3 pt-1">
+                        <input type="checkbox" id="fdSenior" onchange="calculateFD()" class="w-5 h-5 rounded border-gray-300 text-icici-red focus:ring-icici-red">
+                        <label for="fdSenior" class="text-sm text-gray-600">Senior Citizen <span class="text-xs text-gray-400">(+0.50% p.a.)</span></label>
+                    </div>
+                </form>
+
+                <!-- ===== RD FORM ===== -->
+                <form id="rdForm" class="space-y-6 hidden">
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-sm font-medium text-gray-600">Monthly Deposit</label>
+                            <div class="flex items-center gap-1">
+                                <span class="text-xs text-gray-400">₹</span>
+                                <input type="number" id="rdMonthly" value="10000" min="100" max="1000000" step="100"
+                                    class="input-field w-28 text-right text-sm font-semibold rounded-lg px-3 py-1.5 bg-gray-50"
+                                    oninput="syncSlider('rdMonthly','rdMonthlySlider',100,1000000); calculateRD()">
+                            </div>
+                        </div>
+                        <input type="range" id="rdMonthlySlider" min="100" max="1000000" step="100" value="10000"
+                            oninput="syncInput('rdMonthlySlider','rdMonthly'); calculateRD()">
+                        <div class="flex justify-between text-xs text-gray-400 mt-1"><span>₹100</span><span>₹10L</span></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-sm font-medium text-gray-600">Annual Interest Rate</label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="rdRate" value="7.0" min="0.1" max="15" step="0.1"
+                                    class="input-field w-20 text-right text-sm font-semibold rounded-lg px-3 py-1.5 bg-gray-50"
+                                    oninput="syncSlider('rdRate','rdRateSlider',0.1,15); calculateRD()">
+                                <span class="text-xs text-gray-400">%</span>
+                            </div>
+                        </div>
+                        <input type="range" id="rdRateSlider" min="0.1" max="15" step="0.1" value="7.0"
+                            oninput="syncInput('rdRateSlider','rdRate'); calculateRD()">
+                        <div class="flex justify-between text-xs text-gray-400 mt-1"><span>0.1%</span><span>15%</span></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-sm font-medium text-gray-600">Tenure</label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="rdYears" value="5" min="1" max="30" step="1"
+                                    class="input-field w-16 text-right text-sm font-semibold rounded-lg px-3 py-1.5 bg-gray-50"
+                                    oninput="syncSlider('rdYears','rdYearsSlider',1,30); calculateRD()">
+                                <span class="text-xs text-gray-400">yrs</span>
+                            </div>
+                        </div>
+                        <input type="range" id="rdYearsSlider" min="1" max="30" step="1" value="5"
+                            oninput="syncInput('rdYearsSlider','rdYears'); calculateRD()">
+                        <div class="flex justify-between text-xs text-gray-400 mt-1"><span>1 yr</span><span>30 yrs</span></div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="text-sm font-medium text-gray-600 block mb-1">Compounding</label>
+                            <select id="rdCompounding" onchange="calculateRD()"
+                                class="input-field w-full text-sm rounded-lg px-3 py-2 bg-gray-50 cursor-pointer">
+                                <option value="12">Monthly</option>
+                                <option value="4" selected>Quarterly</option>
+                                <option value="2">Half-yearly</option>
+                                <option value="1">Yearly</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-sm font-medium text-gray-600 block mb-1">Start Date</label>
+                            <input type="date" id="rdDate" class="input-field w-full text-sm rounded-lg px-3 py-2 bg-gray-50" onchange="calculateRD()">
+                        </div>
+                    </div>
+                </form>
+
+                <!-- ===== PPF FORM ===== -->
+                <form id="ppfForm" class="space-y-6 hidden">
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-sm font-medium text-gray-600">Yearly Contribution</label>
+                            <div class="flex items-center gap-1">
+                                <span class="text-xs text-gray-400">₹</span>
+                                <input type="number" id="ppfYearly" value="15000" min="500" max="150000" step="500"
+                                    class="input-field w-28 text-right text-sm font-semibold rounded-lg px-3 py-1.5 bg-gray-50"
+                                    oninput="syncSlider('ppfYearly','ppfYearlySlider',500,150000); calculatePPF()">
+                            </div>
+                        </div>
+                        <input type="range" id="ppfYearlySlider" min="500" max="150000" step="500" value="15000"
+                            oninput="syncInput('ppfYearlySlider','ppfYearly'); calculatePPF()">
+                        <div class="flex justify-between text-xs text-gray-400 mt-1"><span>₹500</span><span>₹1.5L</span></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-sm font-medium text-gray-600">Annual Interest Rate</label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="ppfRate" value="7.1" min="0.1" max="15" step="0.1"
+                                    class="input-field w-20 text-right text-sm font-semibold rounded-lg px-3 py-1.5 bg-gray-50"
+                                    oninput="syncSlider('ppfRate','ppfRateSlider',0.1,15); calculatePPF()">
+                                <span class="text-xs text-gray-400">%</span>
+                            </div>
+                        </div>
+                        <input type="range" id="ppfRateSlider" min="0.1" max="15" step="0.1" value="7.1"
+                            oninput="syncInput('ppfRateSlider','ppfRate'); calculatePPF()">
+                        <div class="flex justify-between text-xs text-gray-400 mt-1"><span>0.1%</span><span>15%</span></div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between items-center mb-1">
+                            <label class="text-sm font-medium text-gray-600">Tenure</label>
+                            <div class="flex items-center gap-1">
+                                <input type="number" id="ppfYears" value="15" min="15" max="30" step="1"
+                                    class="input-field w-16 text-right text-sm font-semibold rounded-lg px-3 py-1.5 bg-gray-50"
+                                    oninput="syncSlider('ppfYears','ppfYearsSlider',15,30); calculatePPF()">
+                                <span class="text-xs text-gray-400">yrs</span>
+                            </div>
+                        </div>
+                        <input type="range" id="ppfYearsSlider" min="15" max="30" step="1" value="15"
+                            oninput="syncInput('ppfYearsSlider','ppfYears'); calculatePPF()">
+                        <div class="flex justify-between text-xs text-gray-400 mt-1"><span>15 yrs</span><span>30 yrs</span></div>
+                    </div>
+                    <div>
+                        <label class="text-sm font-medium text-gray-600 block mb-1">Start Date</label>
+                        <input type="date" id="ppfDate" class="input-field w-full text-sm rounded-lg px-3 py-2 bg-gray-50" onchange="calculatePPF()">
+                    </div>
+                    <div class="text-xs text-gray-400 bg-gray-50 p-3 rounded-lg border border-gray-200 mt-1">
+                        <strong>Note:</strong> PPF has a mandatory 15-year lock-in period. Interest is compounded annually.
+                    </div>
+                </form>
+            </div>
+
+            <!-- Results -->
+            <div class="p-6 md:p-8 bg-gradient-to-br from-navy to-navy-light text-white relative overflow-hidden">
+                <div class="absolute inset-0 opacity-5">
+                    <svg width="100%" height="100%"><defs><pattern id="g" width="40" height="40" patternUnits="userSpaceOnUse"><circle cx="20" cy="20" r="1" fill="white"/></pattern></defs><rect width="100%" height="100%" fill="url(#g)"/></svg>
+                </div>
+                <h2 class="text-lg font-semibold text-blue-100 mb-6 relative">Maturity Summary</h2>
+                <div class="relative space-y-1 mb-6">
+                    <p class="text-xs font-medium text-blue-300 uppercase tracking-widest" id="resultLabel">Maturity Value</p>
+                    <h3 id="maturityVal" class="font-display text-4xl font-bold text-white">₹0</h3>
+                </div>
+                <div class="relative grid grid-cols-2 gap-3 mb-6">
+                    <div class="stat-chip rounded-xl p-4">
+                        <p class="text-xs text-blue-300 mb-1">Total Invested</p>
+                        <p id="totalInvested" class="text-lg font-semibold text-white">₹0</p>
+                    </div>
+                    <div class="stat-chip rounded-xl p-4">
+                        <p class="text-xs text-blue-300 mb-1">Total Interest</p>
+                        <p id="totalInterest" class="text-lg font-semibold text-icici-red">₹0</p>
+                    </div>
+                    <div class="stat-chip rounded-xl p-4">
+                        <p class="text-xs text-blue-300 mb-1">Effective Rate</p>
+                        <p id="effectiveRate" class="text-lg font-semibold text-white">0%</p>
+                    </div>
+                    <div class="stat-chip rounded-xl p-4">
+                        <p class="text-xs text-blue-300 mb-1">Interest % of Principal</p>
+                        <p id="interestPct" class="text-lg font-semibold text-white">0%</p>
+                    </div>
+                </div>
+                <!-- Donut Chart -->
+                <div class="relative flex items-center gap-4">
+                    <div class="w-24 h-24 flex-shrink-0">
+                        <canvas id="donutChart"></canvas>
+                    </div>
+                    <div class="text-sm space-y-2">
+                        <div class="donut-legend flex items-center gap-2"><span style="background:#F05A22"></span><span class="text-blue-200">Principal</span></div>
+                        <div class="donut-legend flex items-center gap-2"><span style="background:#fbbf24"></span><span class="text-blue-200">Interest</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex flex-wrap gap-3 mb-8 no-print animate-in" style="animation-delay:0.1s">
+        <button onclick="exportPDF()" class="btn-secondary flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium bg-white shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+            Export PDF
+        </button>
+        <button onclick="exportExcel()" class="btn-secondary flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium bg-white shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            Export Excel
+        </button>
+        <button onclick="printSchedule()" class="btn-secondary flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium bg-white shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+            Print Schedule
+        </button>
+        <div class="ml-auto flex items-center gap-2">
+            <span class="text-sm text-gray-400">View:</span>
+            <button onclick="setView('chart')" id="btnChart" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-icici-red text-white">Chart</button>
+            <button onclick="setView('table')" id="btnTable" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-500">Table</button>
+            <button onclick="setView('both')" id="btnBoth" class="px-3 py-1.5 rounded-lg text-xs font-medium bg-white border border-gray-200 text-gray-500">Both</button>
+        </div>
+    </div>
+
+    <!-- Chart -->
+    <div id="chartSection" class="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-8 animate-in" style="animation-delay:0.15s">
+        <h2 class="text-base font-semibold text-gray-800 mb-4">Wealth Growth Over Time</h2>
+        <div style="height:300px; position:relative">
+            <canvas id="growthChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Table -->
+    <div id="tableSection" class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-in" style="animation-delay:0.2s">
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+            <h2 class="text-base font-semibold text-gray-800">Deposit Schedule</h2>
+            <span id="rowCount" class="text-xs text-gray-400 font-medium"></span>
+        </div>
+        <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
+            <table id="schedule" class="w-full text-sm">
+                <thead class="sticky top-0 z-10">
+                    <tr class="bg-gray-800 text-white">
+                        <th class="px-4 py-3 text-left font-medium text-xs tracking-wide">#</th>
+                        <th class="px-4 py-3 text-left font-medium text-xs tracking-wide">Date</th>
+                        <th class="px-4 py-3 text-right font-medium text-xs tracking-wide">Opening Balance</th>
+                        <th class="px-4 py-3 text-right font-medium text-xs tracking-wide">Deposit / Interest</th>
+                        <th class="px-4 py-3 text-right font-medium text-xs tracking-wide">Interest Earned</th>
+                        <th class="px-4 py-3 text-right font-medium text-xs tracking-wide">Closing Balance</th>
+                    </tr>
+                </thead>
+                <tbody id="scheduleBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="mt-10 text-center text-xs text-gray-400 no-print pb-4">
+        <p>This calculator is for illustrative purposes only. Actual rates may vary based on financial institution policies.</p>
+    </div>
+</main>
+
+<script>
+    let lineChart, donutChart;
+    let currentMode = 'FD';
+    let currentView = 'chart';
+
+    // --- Utilities ---
+    function fmt(n) { return '₹' + Math.abs(n).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+    function syncSlider(inputId, sliderId, min, max) {
+        let val = parseFloat(document.getElementById(inputId).value);
+        if (val < min) val = min;
+        if (val > max) val = max;
+        document.getElementById(sliderId).value = val;
+    }
+    function syncInput(sliderId, inputId) {
+        const val = parseFloat(document.getElementById(sliderId).value);
+        document.getElementById(inputId).value = val;
+    }
+
+    // --- Tab Switching ---
+    function switchTab(tab) {
+        document.getElementById('tabFD').classList.toggle('active', tab === 'FD');
+        document.getElementById('tabRD').classList.toggle('active', tab === 'RD');
+        document.getElementById('tabPPF').classList.toggle('active', tab === 'PPF');
+        document.getElementById('fdForm').classList.toggle('hidden', tab !== 'FD');
+        document.getElementById('rdForm').classList.toggle('hidden', tab !== 'RD');
+        document.getElementById('ppfForm').classList.toggle('hidden', tab !== 'PPF');
+        currentMode = tab;
+        if (tab === 'FD') calculateFD();
+        else if (tab === 'RD') calculateRD();
+        else calculatePPF();
+    }
+    document.getElementById('tabFD').addEventListener('click', () => switchTab('FD'));
+    document.getElementById('tabRD').addEventListener('click', () => switchTab('RD'));
+    document.getElementById('tabPPF').addEventListener('click', () => switchTab('PPF'));
+
+    // --- View Switching ---
+    function setView(v) {
+        currentView = v;
+        document.getElementById('chartSection').style.display = (v === 'table') ? 'none' : '';
+        document.getElementById('tableSection').style.display = (v === 'chart') ? 'none' : '';
+        ['chart','table','both'].forEach(id => {
+            const btn = document.getElementById('btn' + id.charAt(0).toUpperCase() + id.slice(1));
+            if (id === v) {
+                btn.classList.replace('bg-white','bg-icici-red');
+                btn.classList.replace('text-gray-500','text-white');
+                btn.classList.remove('border','border-gray-200');
+            } else {
+                btn.classList.replace('bg-icici-red','bg-white');
+                btn.classList.replace('text-white','text-gray-500');
+                btn.classList.add('border','border-gray-200');
+            }
+        });
+    }
+
+    // --- Date Helpers ---
+    function getStartDate(type) {
+        let val = document.getElementById(type === 'FD' ? 'fdDate' : type === 'RD' ? 'rdDate' : 'ppfDate').value;
+        return val ? new Date(val) : new Date();
+    }
+
+    // =============================================================
+    // ==================== FD CALCULATION ==========================
+    // =============================================================
+
+    function calculateFD() {
+        let P = parseFloat(document.getElementById('fdPrincipal').value) || 0;
+        let annualRate = parseFloat(document.getElementById('fdRate').value) || 0;
+        let years = parseFloat(document.getElementById('fdYears').value) || 0;
+        let n = parseInt(document.getElementById('fdCompounding').value) || 4;
+        let senior = document.getElementById('fdSenior').checked;
+
+        if (P <= 0 || annualRate <= 0 || years <= 0) return;
+
+        let r = annualRate / 100;
+        if (senior) r += 0.005;
+        
+        let maturity = P * Math.pow(1 + r/n, n * years);
+        let totalInterest = maturity - P;
+        let effRate = ((Math.pow(1 + r/n, n) - 1) * 100);
+
+        document.getElementById('resultLabel').textContent = 'Maturity Value';
+        document.getElementById('maturityVal').textContent = fmt(maturity);
+        document.getElementById('totalInvested').textContent = fmt(P);
+        document.getElementById('totalInterest').textContent = fmt(totalInterest);
+        document.getElementById('effectiveRate').textContent = effRate.toFixed(2) + '%';
+        document.getElementById('interestPct').textContent = ((totalInterest / P) * 100).toFixed(1) + '%';
+
+        updateDonut(P, totalInterest);
+        generateFDSchedule(P, r, n, years);
+    }
+
+    function generateFDSchedule(P, rate, n, years) {
+        let totalPeriods = years * n;
+        let periodRate = rate / n;
+        let tbody = document.getElementById('scheduleBody');
+        tbody.innerHTML = '';
+        let balance = P;
+        let labels = [], amounts = [];
+        let startDate = getStartDate('FD');
+        let currentDate = new Date(startDate);
+
+        document.getElementById('rowCount').textContent = totalPeriods + ' periods';
+
+        for (let i = 1; i <= totalPeriods; i++) {
+            let interest = balance * periodRate;
+            let closing = balance + interest;
+            let tr = document.createElement('tr');
+            tr.className = (i % 2 === 0 ? 'table-row-even' : 'table-row-odd') + ' table-row-hover cursor-default';
+            tr.innerHTML = `
+                <td class="px-4 py-2.5 text-gray-400 font-mono text-xs">${String(i).padStart(3,'0')}</td>
+                <td class="px-4 py-2.5 text-gray-600">${currentDate.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
+                <td class="px-4 py-2.5 text-right font-mono text-xs text-gray-700">${fmt(balance)}</td>
+                <td class="px-4 py-2.5 text-right font-mono text-xs text-blue-600">+ Interest</td>
+                <td class="px-4 py-2.5 text-right font-mono text-xs text-amber-600">${fmt(interest)}</td>
+                <td class="px-4 py-2.5 text-right font-mono text-xs text-gray-700">${fmt(closing)}</td>
+            `;
+            tbody.appendChild(tr);
+            balance = closing;
+            currentDate.setMonth(currentDate.getMonth() + Math.round(12 / n));
+            
+            labels.push('P' + i);
+            amounts.push(parseFloat(balance.toFixed(2)));
+        }
+        drawLineChart(labels, amounts, 'FD Balance');
+    }
+
+    // =============================================================
+    // ==================== RD CALCULATION ==========================
+    // =============================================================
+
+    function calculateRD() {
+        let M = parseFloat(document.getElementById('rdMonthly').value) || 0;
+        let annualRate = parseFloat(document.getElementById('rdRate').value) || 0;
+        let years = parseFloat(document.getElementById('rdYears').value) || 0;
+        let n = parseInt(document.getElementById('rdCompounding').value) || 4;
+        let totalMonths = Math.floor(years * 12);
+
+        if (M <= 0 || annualRate <= 0 || years <= 0 || totalMonths === 0) return;
+
+        let r = annualRate / 100;
+        let monthsPerPeriod = 12 / n;
+        let periodRate = r / n;
+        let monthlyRate = Math.pow(1 + periodRate, 1 / monthsPerPeriod) - 1;
+
+        let totalAmount = 0;
+        for (let m = 0; m < totalMonths; m++) {
+            totalAmount += M * Math.pow(1 + monthlyRate, totalMonths - m);
+        }
+        let totalInvested = M * totalMonths;
+        let totalInterest = totalAmount - totalInvested;
+        let effRate = ((Math.pow(1 + monthlyRate, 12) - 1) * 100);
+
+        document.getElementById('resultLabel').textContent = 'Maturity Value';
+        document.getElementById('maturityVal').textContent = fmt(totalAmount);
+        document.getElementById('totalInvested').textContent = fmt(totalInvested);
+        document.getElementById('totalInterest').textContent = fmt(totalInterest);
+        document.getElementById('effectiveRate').textContent = effRate.toFixed(2) + '%';
+        document.getElementById('interestPct').textContent = ((totalInterest / totalInvested) * 100).toFixed(1) + '%';
+
+        updateDonut(totalInvested, totalInterest);
+        generateRDSchedule(M, monthlyRate, totalMonths);
+    }
+
+    function generateRDSchedule(M, monthlyRate, totalMonths) {
+        let tbody = document.getElementById('scheduleBody');
+        tbody.innerHTML = '';
+        let balance = 0;
+        let labels = [], amounts = [];
+        let startDate = getStartDate('RD');
+        let currentDate = new Date(startDate);
+        
+        document.getElementById('rowCount').textContent = totalMonths + ' months';
+
+        for (let i = 1; i <= totalMonths; i++) {
+            let interest = balance * monthlyRate;
+            balance = balance + M + interest;
+            let tr = document.createElement('tr');
+            tr.className = (i % 2 === 0 ? 'table-row-even' : 'table-row-odd') + ' table-row-hover cursor-default';
+            tr.innerHTML = `
+                <td class="px-4 py-2.5 text-gray-400 font-mono text-xs">${String(i).padStart(3,'0')}</td>
+                <td class="px-4 py-2.5 text-gray-600">${currentDate.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
+                <td class="px-4 py-2.5 text-right font-mono text-xs text-gray-700">${fmt(balance - M - interest)}</td>
+                <td class="px-4 py-2.5 text-right font-mono text-xs text-blue-600">${fmt(M)}</td>
+                <td class="px-4 py-2.5 text-right font-mono text-xs text-amber-600">${fmt(interest)}</td>
+                <td class="px-4 py-2.5 text-right font-mono text-xs text-gray-700">${fmt(balance)}</td>
+            `;
+            tbody.appendChild(tr);
+            currentDate.setMonth(currentDate.getMonth() + 1);
+            labels.push('M' + i);
+            amounts.push(parseFloat(balance.toFixed(2)));
+        }
+        drawLineChart(labels, amounts, 'RD Balance');
+    }
+
+    // =============================================================
+    // ==================== PPF CALCULATION ==========================
+    // =============================================================
+
+    function calculatePPF() {
+        let P = parseFloat(document.getElementById('ppfYearly').value) || 0;
+        let annualRate = parseFloat(document.getElementById('ppfRate').value) || 0;
+        let years = parseFloat(document.getElementById('ppfYears').value) || 0;
+
+        if (P <= 0 || annualRate <= 0 || years <= 0) return;
+
+        let r = annualRate / 100;
+        // PPF uses Annuity Due (deposits made at the beginning of the year)
+        let maturity = P * (1 + r) * ((Math.pow(1 + r, years) - 1) / r);
+        let totalInvested = P * years;
+        let totalInterest = maturity - totalInvested;
+        let effRate = ((Math.pow(1 + r, 1) - 1) * 100); // Effective annual rate is the declared rate
+
+        document.getElementById('resultLabel').textContent = 'Maturity Value';
+        document.getElementById('maturityVal').textContent = fmt(maturity);
+        document.getElementById('totalInvested').textContent = fmt(totalInvested);
+        document.getElementById('totalInterest').textContent = fmt(totalInterest);
+        document.getElementById('effectiveRate').textContent = annualRate.toFixed(2) + '%';
+        document.getElementById('interestPct').textContent = ((totalInterest / totalInvested) * 100).toFixed(1) + '%';
+
+        updateDonut(totalInvested, totalInterest);
+        generatePPFSchedule(P, r, years);
+    }
+
+    function generatePPFSchedule(P, rate, years) {
+        let tbody = document.getElementById('scheduleBody');
+        tbody.innerHTML = '';
+        let balance = 0;
+        let labels = [], amounts = [];
+        let startDate = getStartDate('PPF');
+        let currentDate = new Date(startDate);
+        
+        document.getElementById('rowCount').textContent = years + ' years';
+
+        for (let i = 1; i <= years; i++) {
+            let interest = balance * rate;
+            balance = balance + P + interest;
+            let tr = document.createElement('tr');
+            tr.className = (i % 2 === 0 ? 'table-row-even' : 'table-row-odd') + ' table-row-hover cursor-default';
+            tr.innerHTML = `
+                <td class="px-4 py-2.5 text-gray-400 font-mono text-xs">${String(i).padStart(3,'0')}</td>
+                <td class="px-4 py-2.5 text-gray-600">${currentDate.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})}</td>
+                <td class="px-4 py-2.5 text-right font-mono text-xs text-gray-700">${fmt(balance - P - interest)}</td>
+                <td class="px-4 py-2.5 text-right font-mono text-xs text-blue-600">${fmt(P)}</td>
+                <td class="px-4 py-2.5 text-right font-mono text-xs text-amber-600">${fmt(interest)}</td>
+                <td class="px-4 py-2.5 text-right font-mono text-xs text-gray-700">${fmt(balance)}</td>
+            `;
+            tbody.appendChild(tr);
+            currentDate.setFullYear(currentDate.getFullYear() + 1);
+            labels.push('Y' + i);
+            amounts.push(parseFloat(balance.toFixed(2)));
+        }
+        drawLineChart(labels, amounts, 'PPF Balance');
+    }
+
+    // =============================================================
+    // ==================== CHARTS ==================================
+    // =============================================================
+
+    function updateDonut(principal, interest) {
+        const ctx = document.getElementById('donutChart');
+        if (donutChart) donutChart.destroy();
+        donutChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [principal, interest],
+                    backgroundColor: ['#F05A22', '#fbbf24'],
+                    borderWidth: 0,
+                    hoverOffset: 4
+                }]
+            },
+            options: {
+                cutout: '70%',
+                responsive: true,
+                maintainAspectRatio: true,
+                plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ' ' + fmt(ctx.raw) } } }
+            }
+        });
+    }
+
+    function drawLineChart(labels, amounts, labelStr) {
+        const ctx = document.getElementById('growthChart');
+        if (lineChart) lineChart.destroy();
+        const step = Math.ceil(labels.length / 30);
+        const thinLabels = labels.filter((_,i) => i % step === 0 || i === labels.length - 1);
+        const thinAmounts = amounts.filter((_,i) => i % step === 0 || i === amounts.length - 1);
+
+        lineChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: thinLabels,
+                datasets: [{
+                    label: labelStr,
+                    data: thinAmounts,
+                    borderColor: '#F05A22',
+                    backgroundColor: 'rgba(240,90,34,0.08)',
+                    fill: true,
+                    borderWidth: 2.5,
+                    tension: 0.4,
+                    pointRadius: thinLabels.length < 20 ? 3 : 0,
+                    pointHoverRadius: 5,
+                    pointBackgroundColor: '#F05A22'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        backgroundColor: '#0A1F3C',
+                        titleColor: '#94a3b8',
+                        bodyColor: '#fff',
+                        padding: 12,
+                        callbacks: { label: ctx => '  Balance: ' + fmt(ctx.raw) }
+                    }
+                },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 11 }, maxRotation: 0 } },
+                    y: {
+                        grid: { color: 'rgba(0,0,0,0.05)' },
+                        ticks: {
+                            color: '#94a3b8', font: { size: 11 },
+                            callback: v => '₹' + (v >= 100000 ? (v/100000).toFixed(1)+'L' : (v/1000).toFixed(0)+'K')
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // =============================================================
+    // ==================== EXPORTS =================================
+    // =============================================================
+
+    function exportPDF() {
+        const { jsPDF } = window.jspdf;
+        let pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+        pdf.setFillColor(10, 31, 60);
+        pdf.rect(0, 0, 297, 20, 'F');
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFontSize(16);
+        pdf.setFont('helvetica', 'bold');
+        pdf.text('Wealth Planner — Deposit Schedule', 14, 13);
+
+        pdf.setFontSize(10);
+        pdf.setFont('helvetica', 'normal');
+        pdf.setTextColor(50, 50, 50);
+        const mat = document.getElementById('maturityVal').textContent;
+        const inv = document.getElementById('totalInvested').textContent;
+        const int = document.getElementById('totalInterest').textContent;
+        pdf.text(`Maturity: ${mat}   |   Total Invested: ${inv}   |   Total Interest: ${int}`, 14, 28);
+
+        const headers = [['#', 'Date', 'Opening', 'Deposit/Int', 'Interest', 'Closing']];
+        const rows = [];
+        document.querySelectorAll('#scheduleBody tr').forEach(tr => {
+            const cells = tr.querySelectorAll('td');
+            rows.push(Array.from(cells).map(td => td.textContent.trim()));
+        });
+
+        pdf.autoTable ? pdf.autoTable({ head: headers, body: rows, startY: 32, styles: { fontSize: 8 }, headStyles: { fillColor: [31, 41, 55] } })
+            : rows.forEach((row, i) => pdf.text(row.join(' | '), 14, 38 + i * 7));
+
+        pdf.save('Wealth_Deposit_Schedule.pdf');
+    }
+
+    function exportExcel() {
+        const table = document.getElementById('schedule');
+        const wb = XLSX.utils.table_to_book(table, { sheet: 'Deposit Schedule' });
+        XLSX.writeFile(wb, 'Wealth_Deposit_Schedule.xlsx');
+    }
+
+    function printSchedule() {
+        window.print();
+    }
+
+    // =============================================================
+    // ==================== INITIAL LOAD ============================
+    // =============================================================
+
+    document.getElementById('fdDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('rdDate').value = new Date().toISOString().split('T')[0];
+    document.getElementById('ppfDate').value = new Date().toISOString().split('T')[0];
+    calculateFD();
+    setView('chart');
+</script>
+</body>
+</html>
